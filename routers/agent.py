@@ -19,5 +19,5 @@ async def ask_agent(req: AgentRequest):
         f"질문: {req.question}"
     )
 
-    result = agent_executor.run(context)
+    result = agent_executor.invoke({"input": context})["output"]
     return {"answer": result}

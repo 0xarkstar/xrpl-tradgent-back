@@ -1,6 +1,6 @@
 from langchain_openai import ChatOpenAI
-from langchain.agents import AgentExecutor, initialize_agent, Tool
-from langchain.agents.agent_types import AgentType
+from langgraph.prebuilt import create_react_agent
+from langchain.tools import Tool
 
 # 임시 예시 도구 (나중에 실제 체인 연동으로 대체)
 def dummy_balance_tool(input: str) -> str:
@@ -16,9 +16,4 @@ tools = [
 
 llm = ChatOpenAI(model="gpt-4", temperature=0.2)
 
-agent_executor = initialize_agent(
-    tools,
-    llm,
-    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-    verbose=True,
-)
+agent_executor = create_react_agent(llm, tools)

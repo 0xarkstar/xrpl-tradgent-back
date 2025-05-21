@@ -3,6 +3,7 @@ uvicorn
 pydantic
 httpx
 python-dotenv
+langgraph
 langchain
 langchain-core
 langchain-openai
