@@ -1,0 +1,68 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.env
+.venv/
+venv/
+ENV/
+env/
+
+# Environment variables
+*.env
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# macOS & Linux & Windows metadata
+.DS_Store
+Thumbs.db
+
+# Python packaging
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# PyInstaller
+*.spec
+
+# FastAPI static assets (if generated dynamically)
+static/
+
+# Test coverage
+htmlcov/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+
+# LangChain cache or logs
+.cache/
+langchain.db
+langchain_logs/
+
+# Node.js (if React frontend is in the same repo)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Supabase generated files (optional)
+supabase/.temp/
+supabase/.output/
+
+# VSCode Jupyter Notebook stuff
+.ipynb_checkpoints/
+
+# Local database or chain state
+*.sqlite
+*.db
+chain-data/
