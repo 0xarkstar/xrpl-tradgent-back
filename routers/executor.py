@@ -1,12 +1,8 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from services import (
-    xrpl_executor,
-    xrpl_evm_executor,
-    bridge_executor,
-    evm_executor,
-    evm_bridge_executor
-)
+from services import xrpl_executor, evm_executor, bridge_executor
+from services.agent import run_bridge_agent
+import asyncio
 
 router = APIRouter()
 
@@ -17,7 +13,7 @@ class XRPLPaymentRequest(BaseModel):
     amount_drops: str
 
 @router.post("/xrpl/send-payment")
-def send_payment(req: XRPLPaymentRequest):
+def send_payment_api(req: XRPLPaymentRequest):
     result = xrpl_executor.send_payment(req.sender_seed, req.destination, req.amount_drops)
     return {"result": result}
 
@@ -43,48 +39,120 @@ def create_offer(req: XRPLOfferRequest):
     result = xrpl_executor.create_offer(req.sender_seed, req.taker_gets, req.taker_pays)
     return {"result": result}
 
-
-# XRPL → XRPL EVM 브릿지
-class BridgeToEVMRequest(BaseModel):
+# XRPL AMM Deposit
+class XRPLAMMDepositRequest(BaseModel):
     sender_seed: str
-    evm_dest: str
-    amount_drops: str
+    asset1: dict
+    asset2: dict
+    amount1: str = None
+    amount2: str = None
+    flags: int = None
 
-@router.post("/bridge/xrpl-to-evm")
-def bridge_to_evm(req: BridgeToEVMRequest):
-    result = bridge_executor.bridge_xrp_to_evm(req.sender_seed, req.evm_dest, req.amount_drops)
+@router.post("/xrpl/amm-deposit")
+def deposit_to_amm(req: XRPLAMMDepositRequest):
+    result = xrpl_executor.deposit_to_amm(
+        req.sender_seed, req.asset1, req.asset2, req.amount1, req.amount2, req.flags
+    )
     return {"result": result}
 
 
-# XRPL EVM: 잔액 조회
-class XRPLEVMBalanceRequest(BaseModel):
+# XRPL to EVM Bridge (XRP)
+class BridgeXRPLToEVMRequest(BaseModel):
+    sender_seed: str
+    evm_dest: str
+    amount_drops: str
+    axelar_chain: str = "xrpl-evm-sidechain"
+
+@router.post("/bridge/xrpl-to-evm")
+async def bridge_to_evm(req: BridgeXRPLToEVMRequest):
+    result = bridge_executor.bridge_xrp_to_evm(
+        req.sender_seed, req.evm_dest, req.amount_drops, req.axelar_chain
+    )
+    return {"result": result}
+
+# XRPL to EVM Bridge (IOU, 예: RLUSD)
+class BridgeIOUToEVMRequest(BaseModel):
+    sender_seed: str
+    evm_dest: str
+    currency: str
+    issuer: str
+    amount: str
+    axelar_chain: str = "xrpl-evm-sidechain"
+
+@router.post("/bridge/iou-to-evm")
+async def bridge_iou_to_evm(req: BridgeIOUToEVMRequest):
+    result = bridge_executor.bridge_iou_to_evm(
+        req.sender_seed, req.evm_dest, req.currency, req.issuer, req.amount, req.axelar_chain
+    )
+    return {"result": result}
+
+# EVM to XRPL Bridge
+class BridgeEVMToXRPLRequest(BaseModel):
+    private_key: str
+    xrpl_dest: str
+    amount_wei: int
+    axelar_chain: str = "xrpl-evm-sidechain"
+    token_address: str = None
+
+@router.post("/bridge/evm-to-xrpl")
+async def bridge_to_xrpl(req: BridgeEVMToXRPLRequest):
+    result = bridge_executor.bridge_evm_to_xrpl(
+        req.private_key, req.xrpl_dest, req.amount_wei, req.axelar_chain, req.token_address
+    )
+    return {"result": result}
+
+# LangChain Bridge Agent
+class BridgeAgentRequest(BaseModel):
+    query: str
+    sender_seed: str = None
+    evm_dest: str = None
+    amount_drops: str = None
+    currency: str = None
+    issuer: str = None
+    amount: str = None
+    private_key: str = None
+    xrpl_dest: str = None
+    amount_wei: int = None
+    axelar_chain: str = "xrpl-evm-sidechain"
+
+@router.post("/bridge/agent")
+async def bridge_agent(req: BridgeAgentRequest):
+    result = await run_bridge_agent(
+        req.query,
+        req.sender_seed,
+        req.evm_dest,
+        req.amount_drops,
+        req.currency,
+        req.issuer,
+        req.amount,
+        req.private_key,
+        req.xrpl_dest,
+        req.amount_wei,
+        req.axelar_chain
+    )
+    return {"result": result}
+
+# EVM Balance
+class EVMBalanceRequest(BaseModel):
     address: str
 
-@router.post("/xrpl-evm/get-balance")
-def get_evm_balance(req: XRPLEVMBalanceRequest):
-    balance = xrpl_evm_executor.get_eth_balance(req.address)
+@router.post("/evm/get-balance")
+def get_evm_balance(req: EVMBalanceRequest):
+    balance = evm_executor.get_eth_balance(req.address)
     return {"balance_wei": balance}
 
-
-# XRPL EVM: 토큰 전송
-class XRPLEVMSendRequest(BaseModel):
+# EVM Send
+class EVMSendRequest(BaseModel):
     private_key: str
     destination: str
     amount_wei: int
 
-@router.post("/xrpl-evm/send")
-def send_token_evm(req: XRPLEVMSendRequest):
-    result = xrpl_evm_executor.send_native_token(req.private_key, req.destination, req.amount_wei)
+@router.post("/evm/send")
+def send_token_evm(req: EVMSendRequest):
+    result = evm_executor.send_native_token(req.private_key, req.destination, req.amount_wei)
     return {"tx_receipt": result}
 
-
-# Dummy: EVM 유동성 추가
+# EVM Liquidity (Dummy)
 @router.post("/evm/add-liquidity")
-def dummy_add_liquidity():
+def add_liquidity():
     return {"result": evm_executor.dummy_uniswap_add_liquidity()}
-
-
-# Dummy: EVM 브릿지
-@router.post("/bridge/evm-to-other")
-def dummy_evm_bridge():
-    return {"result": evm_bridge_executor.dummy_bridge_to_other_chain()}

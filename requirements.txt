@@ -10,3 +10,4 @@ langchain-openai
 supabase
 xrpl-py
 web3
+mcp-use
