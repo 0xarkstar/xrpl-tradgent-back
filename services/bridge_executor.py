@@ -1,5 +1,5 @@
 from xrpl.clients import JsonRpcClient
-from xrpl.wallet import Wallet
+from xrpl.wallet import Wallet, generate_faucet_wallet
 from xrpl.models.transactions import Payment, Memo
 from xrpl.models.amounts import IssuedCurrencyAmount
 from xrpl.transaction import autofill, sign, submit_and_wait
@@ -14,6 +14,8 @@ ITS_CONTRACT_ADDRESS = "0x1a7580C2ef5D485E069B7cf1DF9f6478603024d3"
 ITS_ABI = [...]  # Axelar ITS ABI
 GATEWAY_ADDRESS = "rNrjh1KGZk2jBR3wPfAQnoidtFFYQKbQn2"
 
+wallet = generate_faucet_wallet(client=client, debug=True) #테스트에 사용할 xrpl 테스트넷 지갑 생성 및 10 xrp faucet
+
 def create_wallet_from_seed(seed: str):
     return Wallet.from_seed(seed=seed)
 
@@ -24,11 +26,11 @@ def generate_payload(evm_dest: str) -> str:
         raise ValueError("잘못된 EVM 주소 길이입니다")
     return "000000000000000000000000" + evm_addr + "0" * 68  # 12바이트 패딩 + 20바이트 EVM + 34바이트 플레이스홀더
 
-def bridge_xrp_to_evm_direct(seed: str, evm_dest: str, amount_drops: str, axelar_chain: str = "xrpl-evm", gas_fee_drops: str = "3000000"):
+def bridge_xrp_to_evm_direct(evm_dest: str, amount_drops: str, axelar_chain: str = "xrpl-evm", gas_fee_drops: str = "3000000"): # 테스트 편의상 seed받아서 지갑생성은 빼놨음
     """
     XRPL에서 XRPL EVM Sidechain으로 XRP 브릿지 (Squid Router 없이 Axelar 멀티시그 사용)
     """
-    wallet = create_wallet_from_seed(seed)
+    # wallet = create_wallet_from_seed(seed)
     evm_dest_raw = evm_dest[2:].lower() if evm_dest.startswith("0x") else evm_dest.lower()  # 0x 제거
     evm_dest_hex = evm_dest_raw.encode().hex()  # ASCII로 변환 후 HEX 인코딩
     payload = generate_payload(evm_dest)
@@ -48,11 +50,11 @@ def bridge_xrp_to_evm_direct(seed: str, evm_dest: str, amount_drops: str, axelar
         Memo(
             memo_data=gas_fee_drops.encode().hex(),
             memo_type="gas_fee_amount".encode().hex()
-        ),
-        Memo(
-            memo_data=payload,  # 직접 HEX 사용
-            memo_type="payload".encode().hex()
         )
+        # Memo(
+        #     memo_data=payload,  # 직접 HEX 사용
+        #     memo_type="payload".encode().hex()
+        # )
     ]
     tx = Payment(
         account=wallet.classic_address,
@@ -63,7 +65,11 @@ def bridge_xrp_to_evm_direct(seed: str, evm_dest: str, amount_drops: str, axelar
     tx = autofill(tx, client)
     signed_tx = sign(tx, wallet)
     result = submit_and_wait(signed_tx, client)
+    print("Tx Hash:", result.result.get("hash"))
+    print("Result:",result.result.get("meta", {}).get("TransactionResult"))
+    
     return result.result
+
 
 def bridge_iou_to_evm_direct(seed: str, evm_dest: str, currency: str, issuer: str, amount: str, axelar_chain: str = "xrpl-evm", gas_fee_drops: str = "3000000"):
     """
@@ -132,3 +138,7 @@ def bridge_evm_to_xrpl(private_key: str, xrpl_dest: str, amount_wei: int, axelar
     tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
     return receipt
+
+evm_destination = "0x79e88288ac11b0cdb53182ee1c43016caa82a1a0" 
+response = bridge_xrp_to_evm_direct(evm_destination,"8000000") 
+print("Response:",response)
