@@ -76,13 +76,24 @@ def test_amm_deposit(req: AMMDepositTestRequest):
     return {"tx_result": result}
 
 
-@router.post("/bridge/test-xrpl-to-evm")
-def test_bridge_to_evm(req: BridgeTestRequest):
-    sender = test_wallets[req.sender_index]
-    result = bridge_executor.bridge_xrp_to_evm_direct(
-        seed=sender["seed"],
-        evm_dest=req.evm_dest,
-        amount_drops=req.amount_drops,
-        axelar_chain=req.axelar_chain
-    )
-    return {"tx_result": result}
+
+# XRPL → EVM 브릿지 테스트 엔드포인트 (XRP)
+
+@router.post("/test/bridge/test-xrpl-to-evm")
+async def test_xrp_bridge(req: BridgeTestRequest):
+    """
+    sender_index, evm_dest, amount_drops, axelar_chain을 받아 bridge_xrp_to_evm 호출
+    """
+    try:
+        sender = test_wallets[req.sender_index]
+        seed = sender["seed"]
+        result = await bridge_executor.bridge_xrp_to_evm(
+            seed=seed,
+            amount_drops=req.amount_drops,
+            evm_dest=req.evm_dest,
+            axelar_chain=req.axelar_chain
+        )
+        return {"status": "success", "result": result}
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=f"Bridge failed: {str(e)}")
