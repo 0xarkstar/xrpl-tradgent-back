@@ -27,7 +27,7 @@ class BridgeTestRequest(BaseModel):
     sender_index: int
     evm_dest: str
     amount_drops: str
-    axelar_chain: str = "xrpl-evm-sidechain"
+    axelar_chain: str = "xrpl-evm"
 
 
 @router.post("/xrpl/test-wallets")

@@ -94,15 +94,16 @@ async def run_bridge_agent(
     
     # 액션 실행
     if action == "bridge_xrp_to_evm":
-        result = bridge_executor.bridge_xrp_to_evm(
-            sender_seed or params.get("sender_seed"),
+        # 비동기 함수이므로 await 필요
+        result = await bridge_executor.bridge_xrp_to_evm(
             evm_dest or params.get("evm_dest"),
             amount_drops or params.get("amount_drops"),
             axelar_chain or params.get("axelar_chain", "xrpl-evm")
         )
         return {"type": "xrp_to_evm", "result": result}
     elif action == "bridge_iou_to_evm":
-        result = bridge_executor.bridge_iou_to_evm(
+        # 동기 함수, direct 버전 사용
+        result = bridge_executor.bridge_iou_to_evm_direct(
             sender_seed or params.get("sender_seed"),
             evm_dest or params.get("evm_dest"),
             currency or params.get("currency"),
@@ -112,6 +113,7 @@ async def run_bridge_agent(
         )
         return {"type": "iou_to_evm", "result": result}
     elif action == "bridge_evm_to_xrpl":
+        # 동기 함수
         result = bridge_executor.bridge_evm_to_xrpl(
             private_key or params.get("private_key"),
             xrpl_dest or params.get("xrpl_dest"),
