@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from xrpl.wallet import generate_faucet_wallet
 from xrpl.clients import JsonRpcClient
-from services import xrpl_executor, bridge_executor
+from mcp_tools import xrpl_executor, bridge_executor
 
 
 client = JsonRpcClient("https://s.altnet.rippletest.net:51234")

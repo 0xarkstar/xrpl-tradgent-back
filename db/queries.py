@@ -1,3 +1,4 @@
+
 from db.client import supabase
 from models.user import UserInitRequest
 
@@ -5,7 +6,6 @@ def insert_user(user: UserInitRequest):
     response = supabase.table("users").insert({
         "wallet_address": user.wallet_address,
         "risk_profile": user.risk_profile,
-        "experience": user.experience,
     }).execute()
     return response
 

@@ -1,7 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from services import xrpl_executor, evm_executor, bridge_executor
-from services.agent import run_bridge_agent
+from mcp_tools import xrpl_executor, evm_executor, bridge_executor
 import asyncio
 
 router = APIRouter()
@@ -61,7 +60,7 @@ class BridgeXRPLToEVMRequest(BaseModel):
     sender_seed: str
     evm_dest: str
     amount_drops: str
-    axelar_chain: str = "xrpl-evm-sidechain"
+    axelar_chain: str = "xrpl-evm"
 
 @router.post("/bridge/xrpl-to-evm")
 async def bridge_to_evm(req: BridgeXRPLToEVMRequest):
@@ -70,28 +69,12 @@ async def bridge_to_evm(req: BridgeXRPLToEVMRequest):
     )
     return {"result": result}
 
-# XRPL to EVM Bridge (IOU, 예: RLUSD)
-class BridgeIOUToEVMRequest(BaseModel):
-    sender_seed: str
-    evm_dest: str
-    currency: str
-    issuer: str
-    amount: str
-    axelar_chain: str = "xrpl-evm-sidechain"
-
-@router.post("/bridge/iou-to-evm")
-async def bridge_iou_to_evm(req: BridgeIOUToEVMRequest):
-    result = bridge_executor.bridge_iou_to_evm(
-        req.sender_seed, req.evm_dest, req.currency, req.issuer, req.amount, req.axelar_chain
-    )
-    return {"result": result}
-
 # EVM to XRPL Bridge
 class BridgeEVMToXRPLRequest(BaseModel):
     private_key: str
     xrpl_dest: str
     amount_wei: int
-    axelar_chain: str = "xrpl-evm-sidechain"
+    axelar_chain: str = "xrpl-evm"
     token_address: str = None
 
 @router.post("/bridge/evm-to-xrpl")
@@ -113,24 +96,7 @@ class BridgeAgentRequest(BaseModel):
     private_key: str = None
     xrpl_dest: str = None
     amount_wei: int = None
-    axelar_chain: str = "xrpl-evm-sidechain"
-
-@router.post("/bridge/agent")
-async def bridge_agent(req: BridgeAgentRequest):
-    result = await run_bridge_agent(
-        req.query,
-        req.sender_seed,
-        req.evm_dest,
-        req.amount_drops,
-        req.currency,
-        req.issuer,
-        req.amount,
-        req.private_key,
-        req.xrpl_dest,
-        req.amount_wei,
-        req.axelar_chain
-    )
-    return {"result": result}
+    axelar_chain: str = "xrpl-evm"
 
 # EVM Balance
 class EVMBalanceRequest(BaseModel):
