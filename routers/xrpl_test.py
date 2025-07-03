@@ -3,9 +3,12 @@ from pydantic import BaseModel
 from xrpl.wallet import generate_faucet_wallet
 from xrpl.clients import JsonRpcClient
 from mcp_tools import xrpl_executor, bridge_executor
+import asyncio
+from xrpl.asyncio.clients import AsyncJsonRpcClient
+from config import settings
 
 
-client = JsonRpcClient("https://s.altnet.rippletest.net:51234")
+client = AsyncJsonRpcClient(settings.XRPL_JSON_RPC_URL)
 router = APIRouter()
 
 test_wallets = []
@@ -29,6 +32,15 @@ class BridgeTestRequest(BaseModel):
     amount_drops: str
     axelar_chain: str = "xrpl-evm"
 
+class AMMDepositXrpTestRequest(BaseModel):
+    sender_index: int
+    xrp_amount: str = "0.5"
+
+class SetTrustlineTestRequest(BaseModel):
+    sender_index: int
+    issuer_address: str = "rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV"
+    currency_code: str "RLUSD"
+    limit_amount : str = "1000000000"
 
 @router.post("/xrpl/test-wallets")
 def create_test_wallets(count: int = 3):
@@ -97,3 +109,40 @@ async def test_xrp_bridge(req: BridgeTestRequest):
     except Exception as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=f"Bridge failed: {str(e)}")
+
+@router.post("/test/amm/set-trustline")
+async def create_trustline(req:SetTrustlineTestRequest):
+    """
+    sender_index, issuer_address, currency_code, limit_amount를 받아 create_trustline 호출
+    """
+    try:
+        sender = test_wallets[req.sender_index]
+        seed = sender["seed"]
+        result = await xrpl_executor.create_trustline(
+            seed = seed,
+            issuer_address = req.issuer_address,
+            currency_code = req.currency_code,
+            limit_amount = req.limit_amount
+            
+        )
+        return {"status": "success", "result": result}
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=f"set trustline failed: {str(e)}")
+
+@router.post("/test/amm/deposit-single-xrp")
+async def amm_deposit_single_xrp(req:AMMDepositXrpTestRequest):
+    """
+    sender_index, xrp_amount를 받아 amm_deposit_single_xrp를 호출
+    """
+    try:
+        sender = test_wallets[req.sender_index]
+        seed = sender["seed"]
+        result = await xrpl_executor.amm_deposit_single_xrp(
+            seed = seed,
+            xrp_amount = req.xrp_amount
+        )
+        return {"status": "success", "result": result }
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=f"Deposit failed: {str(e)}")
