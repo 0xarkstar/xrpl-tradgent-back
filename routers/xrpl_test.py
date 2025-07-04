@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
+
 from xrpl.wallet import generate_faucet_wallet
+
 from xrpl.clients import JsonRpcClient
 from mcp_tools import xrpl_executor, bridge_executor
 import asyncio
@@ -39,7 +41,7 @@ class AMMDepositXrpTestRequest(BaseModel):
 class SetTrustlineTestRequest(BaseModel):
     sender_index: int
     issuer_address: str = "rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV"
-    currency_code: str "RLUSD"
+    currency_code: str  = "RLUSD"
     limit_amount : str = "1000000000"
 
 @router.post("/xrpl/test-wallets")
@@ -58,15 +60,15 @@ def create_test_wallets(count: int = 3):
 
 
 @router.get("/xrpl/test-wallets")
-def get_test_wallets():
+async def get_test_wallets():
     return {"wallets": test_wallets}
 
 
 @router.post("/xrpl/test-payment")
-def send_test_payment(req: PaymentTestRequest):
+async def send_test_payment(req: PaymentTestRequest):
     sender = test_wallets[req.sender_index]
     receiver = test_wallets[req.receiver_index]
-    result = xrpl_executor.send_payment(
+    result = await xrpl_executor.send_payment(
         seed=sender["seed"],
         destination=receiver["classic_address"],
         amount_drops=req.amount_drops
@@ -74,18 +76,7 @@ def send_test_payment(req: PaymentTestRequest):
     return {"tx_result": result}
 
 
-@router.post("/xrpl/test-amm-deposit")
-def test_amm_deposit(req: AMMDepositTestRequest):
-    sender = test_wallets[req.sender_index]
-    result = xrpl_executor.deposit_to_amm(
-        seed=sender["seed"],
-        asset1=req.asset1,
-        asset2=req.asset2,
-        amount1=req.amount1,
-        amount2=req.amount2,
-        flags=req.flags
-    )
-    return {"tx_result": result}
+
 
 
 
@@ -110,6 +101,7 @@ async def test_xrp_bridge(req: BridgeTestRequest):
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=f"Bridge failed: {str(e)}")
 
+# trustline 설정 테스트 엔드포인트
 @router.post("/test/amm/set-trustline")
 async def create_trustline(req:SetTrustlineTestRequest):
     """
@@ -130,6 +122,7 @@ async def create_trustline(req:SetTrustlineTestRequest):
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=f"set trustline failed: {str(e)}")
 
+# xrp 단방향 예치 테스트 엔드포인트
 @router.post("/test/amm/deposit-single-xrp")
 async def amm_deposit_single_xrp(req:AMMDepositXrpTestRequest):
     """

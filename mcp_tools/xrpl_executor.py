@@ -1,7 +1,7 @@
 from xrpl.asyncio.clients import AsyncJsonRpcClient
 from xrpl.wallet import Wallet
 from xrpl.models.transactions import Payment, OfferCreate, AMMDeposit, TrustSet
-from xrpl.transaction import autofill, sign, submit_and_wait, autofill_and_sign,submit
+from xrpl.asyncio.transaction import autofill, sign, submit_and_wait, autofill_and_sign,submit
 from xrpl.models.transactions import Memo, Transaction
 from xrpl.account import get_balance
 import xrpl.utils
@@ -16,7 +16,7 @@ JSON_RPC_URL = "https://s.altnet.rippletest.net:51234"
 client = AsyncJsonRpcClient(settings.XRPL_JSON_RPC_URL)
 
 @mcp.tool
-def create_wallet_from_seed(seed: str):
+async def create_wallet_from_seed(seed: str):
     """Create an XRPL wallet from a seed."""
     return Wallet.from_seed(seed=seed)
 
@@ -29,7 +29,7 @@ def text_to_hex(text):
     return hex_text.ljust(40, '0')
 
 @mcp.tool
-def send_payment(seed: str, destination: str, amount_drops: str):
+async def send_payment(seed: str, destination: str, amount_drops: str):
     """Send a payment on XRPL from the wallet derived from seed to destination address."""
     wallet = create_wallet_from_seed(seed)
     tx = Payment(
@@ -39,31 +39,31 @@ def send_payment(seed: str, destination: str, amount_drops: str):
     )
     tx = autofill(tx, client)
     signed_tx = sign(tx, wallet)
-    result = submit_and_wait(signed_tx, client)
+    result = await submit_and_wait(signed_tx, client)
     return result.result
 
 @mcp.tool
-def get_account_balance(address: str):
+async def get_account_balance(address: str):
     """Get the XRP balance of an account address."""
-    return get_balance(address, client)
+    return await get_balance(address, client)
 
-@mcp.tool
-def create_offer(seed: str, taker_gets: str, taker_pays: dict, flags: int = None):
-    """Create an offer on XRPL DEX."""
-    wallet = create_wallet_from_seed(seed)
-    tx = OfferCreate(
-        account=wallet.classic_address,
-        taker_gets=taker_gets,
-        taker_pays=taker_pays,
-        flags=flags,
-    )
-    tx = autofill(tx, client)
-    signed_tx = sign(tx, wallet)
-    result = submit_and_wait(signed_tx, client)
-    return result.result
+# @mcp.tool
+# def create_offer(seed: str, taker_gets: str, taker_pays: dict, flags: int = None):
+#     """Create an offer on XRPL DEX."""
+#     wallet = create_wallet_from_seed(seed)
+#     tx = OfferCreate(
+#         account=wallet.classic_address,
+#         taker_gets=taker_gets,
+#         taker_pays=taker_pays,
+#         flags=flags,
+#     )
+#     tx = autofill(tx, client)
+#     signed_tx = sign(tx, wallet)
+#     result = submit_and_wait(signed_tx, client)
+#     return result.result
 
 
-async def create_trustline(seed: str, issuer_address:str, currency_code:str, limit_amount="1000000000"):
+async def create_trustline(seed: str, issuer_address:str, currency_code:str, limit_amount="1000000000"): #trustline 설정함수
     """
     Creates a trustline for a specific currency on XRPL testnet
     
@@ -77,13 +77,14 @@ async def create_trustline(seed: str, issuer_address:str, currency_code:str, lim
     
     
     try:
-        currency_hex = text_to_hex(currency_code)
+        currency_hex = text_to_hex(currency_code) #입력받은 토큰명을 hex값으로 치환 
     except ValueError as e:
         print(f"Error: {e}")
         return
     
     # Prepare the trust set transaction
-    trust_set_tx = TrustSet(
+    # trustline 설정 트랜잭션
+    trust_set_tx = TrustSet( 
         account=wallet.classic_address,
         limit_amount={
             "currency": currency_hex,
@@ -101,7 +102,7 @@ async def create_trustline(seed: str, issuer_address:str, currency_code:str, lim
     
     try:
         # Submit and wait for validation
-        response = submit_and_wait(trust_set_tx, client, wallet)
+        response = await submit_and_wait(trust_set_tx, client, wallet)
         
         # Check the result
         if response.is_successful():
@@ -116,54 +117,8 @@ async def create_trustline(seed: str, issuer_address:str, currency_code:str, lim
     
     print("==============================\n")
 
-# if __name__ == "__main__":
-#     # Example usage - replace with your values
-#     seed = "sEdVZUmeY8oLphH6WPdUBC82Fh8QpTN"  # Replace with your wallet seed
-#     issuer_address = "rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV"
-#     currency_code = "RLUSD"
 
-#     create_trustline(seed, issuer_address, currency_code)
-
-
-
-
-
-
-
-# def deposit_to_amm(seed: str, asset1: dict, asset2: dict, amount1: str = None, amount2: str = None, flags: int = None):
-#     wallet = create_wallet_from_seed(seed)
-#     tx_fields = {
-#         "account": wallet.classic_address,
-#         "asset": asset1,
-#         "asset2": asset2,
-#     }
-#     if amount1:
-#         if asset1.get("currency") == "XRP":
-#             tx_fields["amount"] = amount1
-#         else:
-#             tx_fields["amount"] = IssuedCurrencyAmount(
-#                 currency=asset1["currency"],
-#                 issuer=asset1["issuer"],
-#                 value=amount1
-#             )
-#     if amount2:
-#         if asset2.get("currency") == "XRP":
-#             tx_fields["amount2"] = amount2
-#         else:
-#             tx_fields["amount2"] = IssuedCurrencyAmount(
-#                 currency=asset2["currency"],
-#                 issuer=asset2["issuer"],
-#                 value=amount2
-#             )
-#     if flags:
-#         tx_fields["flags"] = flags
-#     tx = AMMDeposit(**tx_fields)
-#     tx = autofill(tx, client)
-#     signed_tx = sign(tx, wallet)
-#     result = submit_and_wait(signed_tx, client)
-#     return result.result
-
-
+# xrp 단방향 예치 함수, RLUSD와 페어인 풀에 예치
 async def amm_deposit_single_xrp(seed, xrp_amount="0.5"):
     """
     Deposits only RLUSD into an existing AMM
@@ -212,6 +167,7 @@ async def amm_deposit_single_xrp(seed, xrp_amount="0.5"):
     
     try:
         # Sign transaction
+        deposit_tx = await autofill(deposit_tx, client)
         signed_tx =sign(deposit_tx, wallet)
         
         # Submit transaction
