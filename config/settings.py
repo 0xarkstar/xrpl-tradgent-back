@@ -1,7 +1,9 @@
 import os
 
 #.env에 없는 환경변수 (민감한 정보가 아님)
-XRPL_JSON_RPC_URL = os.getenv("XRPL_JSON_RPC_URL", "https://s.altnet.rippletest.net:51234")
+XRPL_JSON_RPC_URL = os.getenv("XRPL_JSON_RPC_URL", "https://s.devnet.rippletest.net:51234")
+
+#testnet https://s.altnet.rippletest.net:51234
 EVM_RPC_URL = os.getenv("EVM_RPC_URL", "https://rpc.testnet.xrplevm.org")
 GATEWAY_ADDRESS = os.getenv("GATEWAY_ADDRESS", "rNrjh1KGZk2jBR3wPfAQnoidtFFYQKbQn2")
 GAS_FEE_AMOUNT = os.getenv("GAS_FEE_AMOUNT", "3000000")

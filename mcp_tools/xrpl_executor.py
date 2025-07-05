@@ -1,6 +1,6 @@
 from xrpl.asyncio.clients import AsyncJsonRpcClient
 from xrpl.wallet import Wallet
-from xrpl.models.transactions import Payment, OfferCreate, AMMDeposit, TrustSet
+from xrpl.models.transactions import Payment, OfferCreate, AMMDeposit, TrustSet, DelegateSet
 from xrpl.asyncio.transaction import autofill, sign, submit_and_wait, autofill_and_sign,submit
 from xrpl.models.transactions import Memo, Transaction
 from xrpl.account import get_balance
@@ -9,9 +9,10 @@ from xrpl.models.amounts import IssuedCurrencyAmount
 from config import settings
 from mcp_tools.mcp_instance import mcp
 from xrpl.models.requests.account_info import AccountInfo
+from xrpl.models.transactions.delegate_set import Permission
 import asyncio 
 
-JSON_RPC_URL = "https://s.altnet.rippletest.net:51234"
+
 
 client = AsyncJsonRpcClient(settings.XRPL_JSON_RPC_URL)
 
@@ -138,7 +139,7 @@ async def amm_deposit_single_xrp(seed, xrp_amount="0.5"):
         account=wallet.classic_address,
         ledger_index="validated"
     ))
-    sequence = account_info.result['account_data']['Sequence']
+    sequence = account_info.result['account_data']['Sequence']  
     
     # Prepare AMM deposit transaction
     tx_dict = {
@@ -186,3 +187,39 @@ async def amm_deposit_single_xrp(seed, xrp_amount="0.5"):
     except Exception as e:
         print(f"\nError making deposit: {str(e)}")
         raise e
+
+async def delegate_permission(seed,  delegated_account, permission:str = "Payment"):
+    """delegating permission to delegated_account."""
+    wallet = Wallet.from_seed(seed)
+    
+    delegate_tx = DelegateSet(
+    account=wallet.classic_address,
+    authorize=delegated_account,
+    permissions=[
+        Permission(permission_value= permission)
+    ]
+)
+    
+    
+    try:
+        # Sign transaction
+        
+        delegate_tx = await autofill(delegate_tx, client)
+        signed_tx =sign(delegate_tx, wallet)
+        
+        # Submit transaction
+        response = await submit_and_wait(signed_tx, client)
+        
+        # Check the result
+        if response.result.get("meta", {}).get("TransactionResult") == "tesSUCCESS":
+            print("\nDelegate successful!")
+            print(f"Transaction hash: {response.result.get('hash')}")
+        else:
+            print("\nDelegate failed")
+            print(f"Error: {response.result}")
+
+    except Exception as e:
+        print(f"\nError making delegate: {str(e)}")
+        raise e
+
+

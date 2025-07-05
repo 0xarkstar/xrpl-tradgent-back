@@ -44,6 +44,11 @@ class SetTrustlineTestRequest(BaseModel):
     currency_code: str  = "RLUSD"
     limit_amount : str = "1000000000"
 
+class DelegatePermissionTestRequest(BaseModel):
+    sender_index: int = 0
+    receiver_index: int = 1
+    permission: str =  "Payment"
+
 @router.post("/xrpl/test-wallets")
 def create_test_wallets(count: int = 3):
     global test_wallets
@@ -139,3 +144,21 @@ async def amm_deposit_single_xrp(req:AMMDepositXrpTestRequest):
     except Exception as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=f"Deposit failed: {str(e)}")
+
+@router.post("/test/delegation/delegate-permission")
+async def test_delegate_permission(req:DelegatePermissionTestRequest):
+    """
+    sender_index, receiver_index, Permission을 받아 delegate_permission을 호출 
+    """
+    try:
+        sender = test_wallets[req.sender_index]
+        receiver = test_wallets[req.receiver_index]
+        response = await xrpl_executor.delegate_permission(
+            seed = sender["seed"],
+            delegated_account = receiver["classic_address"],
+            permission = req.permission
+        )
+        return {"status": "success", "result": response}
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=f"Delegation failed: {str(e)}")
