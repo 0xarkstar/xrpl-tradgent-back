@@ -32,16 +32,32 @@ def text_to_hex(text):
 @mcp.tool
 async def send_payment(seed: str, destination: str, amount_drops: str):
     """Send a payment on XRPL from the wallet derived from seed to destination address."""
-    wallet = create_wallet_from_seed(seed)
+    wallet = Wallet.from_seed(seed)
     tx = Payment(
         account=wallet.classic_address,
         amount=amount_drops,
         destination=destination,
     )
-    tx = autofill(tx, client)
+    tx = await autofill(tx, client)
     signed_tx = sign(tx, wallet)
     result = await submit_and_wait(signed_tx, client)
     return result.result
+
+
+async def delegate_send_payment(seed: str,org_account: str, destination: str, amount_drops: str):
+    """Send a payment on XRPL from the wallet derived from seed to destination address."""
+    wallet = Wallet.from_seed(seed)
+    tx = Payment(
+        account=org_account,
+        amount=amount_drops,
+        delegate = wallet.classic_address,
+        destination=destination,
+    )
+    tx = await autofill(tx, client)
+    signed_tx = sign(tx, wallet)
+    result = await submit_and_wait(signed_tx, client)
+    return result.result
+
 
 @mcp.tool
 async def get_account_balance(address: str):

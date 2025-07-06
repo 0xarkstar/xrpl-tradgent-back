@@ -20,6 +20,13 @@ class PaymentTestRequest(BaseModel):
     receiver_index: int
     amount_drops: str
 
+class DelegatePaymentTestRequest(BaseModel):
+    sender_index: int
+    delegated_sender_index: int
+    receiver_index: int
+    amount_drops: str
+
+
 class AMMDepositTestRequest(BaseModel):
     sender_index: int
     asset1: dict
@@ -75,6 +82,19 @@ async def send_test_payment(req: PaymentTestRequest):
     receiver = test_wallets[req.receiver_index]
     result = await xrpl_executor.send_payment(
         seed=sender["seed"],
+        destination=receiver["classic_address"],
+        amount_drops=req.amount_drops
+    )
+    return {"tx_result": result}
+
+@router.post("/xrpl/test-delegate-payment")
+async def send_test_delegate_payment(req: DelegatePaymentTestRequest):
+    sender = test_wallets[req.sender_index]
+    delegated_sender = test_wallets[req.delegated_sender_index]
+    receiver = test_wallets[req.receiver_index]
+    result = await xrpl_executor.delegate_send_payment(
+        seed=delegated_sender["seed"],
+        org_account=sender["classic_address"],
         destination=receiver["classic_address"],
         amount_drops=req.amount_drops
     )
