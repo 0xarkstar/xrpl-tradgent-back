@@ -15,19 +15,17 @@ w3 = Web3(Web3.HTTPProvider(settings.EVM_RPC_URL))
 
 ITS_CONTRACT_ADDRESS = "0x1a7580C2ef5D485E069B7cf1DF9f6478603024d3"
 
-@mcp.tool
+
 def create_wallet_from_seed(seed: str) -> Wallet:
     """Create an XRPL wallet from a seed."""
     return Wallet.from_seed(seed=seed)
 
-@mcp.tool
 def validate_evm_address(evm_dest: str) -> str:
     """Validate and clean an EVM address for bridging."""
     if not evm_dest.startswith("0x") or len(evm_dest) != 42:
         raise ValueError("Invalid EVM address")
     return evm_dest[2:].upper()
 
-@mcp.tool
 def build_memos(
     evm_dest: str,
     axelar_chain: str = "xrpl-evm",
@@ -57,7 +55,6 @@ def build_memos(
     ]
     return memos
 
-@mcp.tool
 async def bridge_xrp_to_evm(seed: str, evm_dest: str, amount_drops: str, axelar_chain: str = "xrpl-evm", gas_fee_drops: str = "3000000"):
     """Bridge XRP from XRPL to EVM chain using Axelar."""
     wallet = create_wallet_from_seed(seed)

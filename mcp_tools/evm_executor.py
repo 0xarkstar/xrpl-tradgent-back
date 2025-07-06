@@ -9,7 +9,6 @@ def get_eth_balance(address: str):
     """Get the ETH balance (in wei) of an EVM account."""
     return w3.eth.get_balance(address)
 
-@mcp.tool
 def send_native_token(private_key: str, destination: str, amount_wei: int):
     """Send native EVM token (ETH) to a destination address."""
     account = w3.eth.account.from_key(private_key)
@@ -25,7 +24,6 @@ def send_native_token(private_key: str, destination: str, amount_wei: int):
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
     return receipt
 
-@mcp.tool
 def dummy_uniswap_add_liquidity():
     """Dummy function for Uniswap liquidity addition (to be implemented)."""
     return {"status": "Dummy liquidity addition successful"}

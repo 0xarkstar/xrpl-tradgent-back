@@ -13,10 +13,9 @@ from xrpl.models.transactions.delegate_set import Permission
 import asyncio 
 
 
-
 client = AsyncJsonRpcClient(settings.XRPL_JSON_RPC_URL)
 
-@mcp.tool
+
 async def create_wallet_from_seed(seed: str):
     """Create an XRPL wallet from a seed."""
     return Wallet.from_seed(seed=seed)
@@ -80,15 +79,14 @@ async def get_account_balance(address: str):
 #     return result.result
 
 
-async def create_trustline(seed: str, issuer_address:str, currency_code:str, limit_amount="1000000000"): #trustline 설정함수
+@mcp.tool
+async def create_trustline(seed: str, issuer_address:str, currency_code:str, limit_amount="1000000000"):
     """
-    Creates a trustline for a specific currency on XRPL testnet
-    
-    Parameters:
-    seed: The seed of the wallet to create the trustline from
-    issuer_address: The address of the token issuer
-    currency_code: The currency code (e.g., 'USD')
-    limit_amount: The trust line limit amount (default: 1000000000)
+    Creates a trustline for a specific currency on the XRPL. This is required before you can hold a token.
+    seed: The seed of the wallet to create the trustline from.
+    issuer_address: The address of the token issuer.
+    currency_code: The currency code (e.g., 'USD').
+    limit_amount: The trust line limit amount.
     """
     wallet = Wallet.from_seed(seed)
     
@@ -125,20 +123,24 @@ async def create_trustline(seed: str, issuer_address:str, currency_code:str, lim
         if response.is_successful():
             print("\nTrustline created successfully!")
             print(f"Transaction hash: {response.result['hash']}")
+            return response.result
         else:
             print("\nFailed to create trustline")
             print(f"Error: {response.result.get('engine_result_message')}")
+            return {"error": response.result.get('engine_result_message')}
             
     except Exception as e:
         print(f"\nError creating trustline: {str(e)}")
+        return {"error": str(e)}
     
     print("==============================\n")
 
 
-# xrp 단방향 예치 함수, RLUSD와 페어인 풀에 예치
-async def amm_deposit_single_xrp(seed, xrp_amount="0.5"):
+async def amm_deposit_single_xrp(seed: str, xrp_amount: str = "0.5"):
     """
-    Deposits only RLUSD into an existing AMM
+    Deposits a single asset (XRP) into an AMM pool. This is useful for providing liquidity.
+    seed: The seed of the wallet to deposit from.
+    xrp_amount: The amount of XRP to deposit.
     """
     # Define the network client
     client = AsyncJsonRpcClient(settings.XRPL_JSON_RPC_URL)
@@ -194,18 +196,23 @@ async def amm_deposit_single_xrp(seed, xrp_amount="0.5"):
         if "engine_result" in response.result and response.result["engine_result"] == "tesSUCCESS":
             print("\nDeposit successful!")
             print(f"Transaction hash: {response.result.get('tx_json', {}).get('hash')}")
-            return response
+            return response.result
         else:
             print("\nDeposit failed")
             print(f"Error: {response.result}")
-            return response
+            return {"error": response.result}
             
     except Exception as e:
         print(f"\nError making deposit: {str(e)}")
         raise e
 
-async def delegate_permission(seed,  delegated_account, permission:str = "Payment"):
-    """delegating permission to delegated_account."""
+async def delegate_permission(seed: str,  delegated_account: str, permission: str = "Payment"):
+    """
+    Delegates a specific permission (e.g., 'Payment', 'OfferCreate') to another account.
+    seed: The seed of the wallet granting the permission.
+    delegated_account: The account to which the permission is delegated.
+    permission: The permission to delegate.
+    """
     wallet = Wallet.from_seed(seed)
     
     delegate_tx = DelegateSet(
@@ -230,9 +237,15 @@ async def delegate_permission(seed,  delegated_account, permission:str = "Paymen
         if response.result.get("meta", {}).get("TransactionResult") == "tesSUCCESS":
             print("\nDelegate successful!")
             print(f"Transaction hash: {response.result.get('hash')}")
+            return response.result
         else:
             print("\nDelegate failed")
             print(f"Error: {response.result}")
+            return {"error": response.result}
+
+    except Exception as e:
+        print(f"\nError making delegate: {str(e)}")
+        raise e
 
     except Exception as e:
         print(f"\nError making delegate: {str(e)}")
