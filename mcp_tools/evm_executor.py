@@ -1,10 +1,9 @@
 from web3 import Web3
 from config import settings
-from mcp_tools.mcp_instance import mcp
+
 
 w3 = Web3(Web3.HTTPProvider(settings.EVM_RPC_URL))
 
-@mcp.tool
 def get_eth_balance(address: str):
     """Get the ETH balance (in wei) of an EVM account."""
     return w3.eth.get_balance(address)

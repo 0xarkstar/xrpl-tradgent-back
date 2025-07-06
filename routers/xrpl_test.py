@@ -1,11 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from xrpl.wallet import generate_faucet_wallet
 
-from xrpl.clients import JsonRpcClient
 from mcp_tools import xrpl_executor, bridge_executor
-import asyncio
 from xrpl.asyncio.clients import AsyncJsonRpcClient
 from config import settings
 

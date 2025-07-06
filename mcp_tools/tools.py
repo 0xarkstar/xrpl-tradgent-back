@@ -135,34 +135,28 @@ def send_native_token(private_key: str, destination: str, amount_wei: int, ctx: 
 
 @mcp.tool
 def dummy_uniswap_add_liquidity(ctx: Context):
-    """Uniswap 유동성 추가를 위한 더미 함수 (구현 예정).
-    """
-    ctx.info("더미 Uniswap 유동성 추가 실행.")
-    result = evm_dummy_uniswap_add_liquidity()
-    return {"status": result["status"]}
-
-@mcp.prompt
-def strategy_explanation_prompt(strategy: str) -> str:
-    return f"Please explain the following DeFi strategy in simple terms: {strategy}"
-
+    """Uniswap 유동성 추가를 위한 더미 함수 (구현 예정)."""
+    raise NotImplementedError("Dummy Uniswap liquidity addition is not yet implemented.")
 
 
 @mcp.tool
 async def deposit_to_vault(wallet_address: str, amount: float, ctx: Context):
-    await ctx.info("VAULT 예치 실행 (더미)")
-    return {"result": "success"}
+    raise NotImplementedError("Deposit to vault is not yet implemented.")
 
 @mcp.tool
 async def set_investment_goal(wallet_address: str, goal: str, ctx: Context):
-    await ctx.info("투자 목표 설정 (더미)")
-    return {"result": "success"}
+    raise NotImplementedError("Setting investment goal is not yet implemented.")
 
 @mcp.tool
 async def ai_strategy_recommendation(wallet_address: str, risk_profile: str, ctx: Context):
-    await ctx.info(f"전략 추천 (더미): {risk_profile}")
-    return {"strategy": "", "detail": ""}
+    raise NotImplementedError("AI strategy recommendation is not yet implemented.")
 
 @mcp.tool
 async def approve_strategy(wallet_address: str, strategy: str, ctx: Context):
-    await ctx.info("전략 승인 (더미)")
-    return {"result": "approved"}
+    raise NotImplementedError("Strategy approval is not yet implemented.")
+
+
+# FastMCP 프롬프트 정의
+@mcp.prompt
+def strategy_explanation_prompt(strategy: str) -> str:
+    return f"Please explain the following DeFi strategy in simple terms: {strategy}"

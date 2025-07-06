@@ -1,13 +1,4 @@
-"""
-LangGraph 공식 튜토리얼 베스트 프랙티스 기반 XRPL DeFi 파밍 에이전트
-- State 구조 확장, prebuilt ToolNode/조건, SqliteSaver checkpointer, human-in-the-loop 확장성
-"""
-# 시스템 프롬프트: DeFi 파밍 역할 제한
-SYSTEM_PROMPT = (
-    "당신은 DeFi 파밍 전략 추천 및 실행만 담당하는 AI 에이전트입니다. "
-    "사용자 정보를 조회하려면 `get_user_profile` 툴을 사용하세요. "
-    "DeFi 파밍과 무관한 질문이나 명령에는 반드시 '죄송합니다. 저는 DeFi 파밍 관련 업무만 도와드릴 수 있습니다.'라고 답변하세요."
-)
+
 
 from typing import Annotated, List, Optional
 import graphviz
@@ -17,10 +8,16 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, Functi
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
-from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from config import settings
-from mcp_tools.mcp_instance import mcp
+import logging
 import os
+from config.settings import SYSTEM_PROMPT
+from psycopg_pool import AsyncConnectionPool
+from functools import partial
+from langchain_mcp_adapters.tools import load_mcp_tools
+from langchain_mcp_adapters.client import MultiServerMCPClient
+
 
 # LLM 및 툴 준비
 llm = ChatOpenAI(model="gpt-4.1", temperature=0, streaming=True)
@@ -44,39 +41,57 @@ async def _initialize_agent_executor():
     if _agent_executor_instance is not None:
         return _agent_executor_instance
 
-    tools = await mcp.get_tools() # Await the coroutine
+    try:
+        logging.info("Initializing agent executor...")
+        # MCP 서버 URL (mcp_server.py가 실행되는 주소)
+        mcp_server_url = settings.MCP_SERVER_URL
+        
+        # MultiServerMCPClient를 인스턴스화합니다.
+        # 이 클라이언트는 MCP 서버에 대한 연결 정보를 관리합니다.
+        # 단일 서버의 경우에도 이 클라이언트를 통해 도구를 가져오는 것이 권장됩니다.
+        mcp_client = MultiServerMCPClient(connections={"default": {"url": f"{mcp_server_url}/mcp", "transport": "streamable_http"}})
+        
+        # mcp_client의 get_tools() 메서드를 사용하여 도구들을 가져옵니다.
+        # 이 메서드는 내부적으로 load_mcp_tools를 호출하며 올바른 세션을 관리합니다.
+        tools = await mcp_client.get_tools(server_name="default")
 
-    # prebuilt ToolNode 사용
-    tool_node = ToolNode(tools=tools)
+        global llm
+        llm = llm.bind_tools(tools)
+        logging.debug(f"Tools bound to LLM: {[tool.name for tool in tools]}")
 
-    # StateGraph 빌드
-    graph_builder = StateGraph(AgentState)
-    graph_builder.add_node("chatbot", chatbot_node)
-    graph_builder.add_node("tools", tool_node)
+        tool_node = ToolNode(tools=tools)
+        logging.debug(f"Tools in ToolNode: {[tool.name for tool in tools]}")
 
-    # 조건부 분기: prebuilt tools_condition 사용
-    graph_builder.add_conditional_edges(
-        "chatbot",
-        tools_condition,
-    )
-    graph_builder.add_edge("tools", "chatbot")
-    graph_builder.add_edge(START, "chatbot")
+        # StateGraph 빌드
+        graph_builder = StateGraph(AgentState)
+        graph_builder.add_node("chatbot", chatbot_node)
+        graph_builder.add_node("tools", tool_node)
 
-    # Supabase(PostgreSQL) 연결 정보 환경변수에서 읽기
-    POSTGRES_CONN_STR = getattr(settings, "POSTGRES_CONNECTION_STRING", None)
+        # 조건부 분기: prebuilt tools_condition 사용
+        graph_builder.add_conditional_edges(
+            "chatbot",
+            tools_condition,
+        )
+        graph_builder.add_edge("tools", "chatbot")
+        graph_builder.add_edge(START, "chatbot")
 
-    if POSTGRES_CONN_STR:
-        checkpointer = PostgresSaver(POSTGRES_CONN_STR)
-    else:
-        raise RuntimeError("PostgreSQL 연결 정보가 없습니다. POSTGRES_CONNECTION_STRING 환경 변수를 확인하세요.")
+        # Supabase(PostgreSQL) 연결 정보 환경변수에서 읽기
+        POSTGRES_CONN_STR = getattr(settings, "POSTGRES_CONNECTION_STRING", None)
 
-    # 그래프 컴파일
-    _agent_executor_instance = graph_builder.compile(checkpointer=checkpointer)
-    return _agent_executor_instance
+        if POSTGRES_CONN_STR:
+            pool = AsyncConnectionPool(POSTGRES_CONN_STR, open=True)
+            checkpointer = AsyncPostgresSaver(pool)
+            
+        else:
+            raise RuntimeError("PostgreSQL 연결 정보가 없습니다. POSTGRES_CONNECTION_STRING 환경 변수를 확인하세요.")
 
-# 시작점 설정
-
-# (구버전 워크플로우/노드/엣지/컴파일 코드 제거됨)
+        # 그래프 컴파일
+        _agent_executor_instance = graph_builder.compile(checkpointer=checkpointer)
+        logging.info("Agent executor initialized successfully.")
+        return _agent_executor_instance
+    except Exception as e:
+        logging.error(f"Error during agent executor initialization: {e}", exc_info=True)
+        raise
 
 async def get_agent():    return await _initialize_agent_executor()
 
@@ -104,7 +119,3 @@ async def stream_agent(query: str, user_id: str):
             elif isinstance(last_message, FunctionMessage):
                 yield {"tool_output": last_message.content, "tool_name": last_message.name}
 
-async def get_agent_png(user_id: str = "test_user"):
-    agent_executor = await _initialize_agent_executor()
-    # (디버깅용) 현재 에이전트의 상태 그래프를 PNG 이미지로 생성합니다.
-    pass

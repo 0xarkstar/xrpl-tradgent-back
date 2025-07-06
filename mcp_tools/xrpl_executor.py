@@ -1,34 +1,40 @@
 from xrpl.asyncio.clients import AsyncJsonRpcClient
 from xrpl.wallet import Wallet
 from xrpl.models.transactions import Payment, OfferCreate, AMMDeposit, TrustSet, DelegateSet
-from xrpl.asyncio.transaction import autofill, sign, submit_and_wait, autofill_and_sign,submit
+from xrpl.asyncio.transaction import autofill, autofill_and_sign, submit
 from xrpl.models.transactions import Memo, Transaction
-from xrpl.account import get_balance
+
 import xrpl.utils
 from xrpl.models.amounts import IssuedCurrencyAmount
 from config import settings
-from mcp_tools.mcp_instance import mcp
+
 from xrpl.models.requests.account_info import AccountInfo
 from xrpl.models.transactions.delegate_set import Permission
 import asyncio 
+import traceback
 
+RLUSD_CURRENCY_HEX = "524C555344000000000000000000000000000000"
+RLUSD_ISSUER = "rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV"
+
+import logging
 
 client = AsyncJsonRpcClient(settings.XRPL_JSON_RPC_URL)
 
 
-async def create_wallet_from_seed(seed: str):
+def create_wallet_from_seed(seed: str):
     """Create an XRPL wallet from a seed."""
     return Wallet.from_seed(seed=seed)
 
 
+MAX_TEXT_LENGTH = 20
+
 def text_to_hex(text):
     """Convert text to hex with proper padding"""
-    if len(text) > 20:
+    if len(text) > MAX_TEXT_LENGTH:
         raise ValueError("Text must be 20 characters or less")
     hex_text = text.encode('ascii').hex().upper()
     return hex_text.ljust(40, '0')
 
-@mcp.tool
 async def send_payment(seed: str, destination: str, amount_drops: str):
     """Send a payment on XRPL from the wallet derived from seed to destination address."""
     wallet = Wallet.from_seed(seed)
@@ -37,9 +43,8 @@ async def send_payment(seed: str, destination: str, amount_drops: str):
         amount=amount_drops,
         destination=destination,
     )
-    tx = await autofill(tx, client)
-    signed_tx = sign(tx, wallet)
-    result = await submit_and_wait(signed_tx, client)
+    signed_tx = await autofill_and_sign(tx, client, wallet)
+    result = await submit(signed_tx, client)
     return result.result
 
 
@@ -52,34 +57,30 @@ async def delegate_send_payment(seed: str,org_account: str, destination: str, am
         delegate = wallet.classic_address,
         destination=destination,
     )
-    tx = await autofill(tx, client)
-    signed_tx = sign(tx, wallet)
-    result = await submit_and_wait(signed_tx, client)
+    signed_tx = await autofill_and_sign(tx, client, wallet)
+    result = await submit(signed_tx, client)
     return result.result
 
 
-@mcp.tool
 async def get_account_balance(address: str):
     """Get the XRP balance of an account address."""
-    return await get_balance(address, client)
-
-# @mcp.tool
-# def create_offer(seed: str, taker_gets: str, taker_pays: dict, flags: int = None):
-#     """Create an offer on XRPL DEX."""
-#     wallet = create_wallet_from_seed(seed)
-#     tx = OfferCreate(
-#         account=wallet.classic_address,
-#         taker_gets=taker_gets,
-#         taker_pays=taker_pays,
-#         flags=flags,
-#     )
-#     tx = autofill(tx, client)
-#     signed_tx = sign(tx, wallet)
-#     result = submit_and_wait(signed_tx, client)
-#     return result.result
+    try:
+        req = AccountInfo(
+            account=address,
+            ledger_index="validated",
+        )
+        account_info = await client.request(req)
+        balance = account_info.result["account_data"]["Balance"]
+        logging.debug(f"Successfully retrieved balance for {address}: {balance}")
+        return balance
+    except Exception as e:
+        logging.error(f"Failed to get balance for {address}: {e}")
+        traceback.print_exc()
+        return {"error": str(e)}
 
 
-@mcp.tool
+
+
 async def create_trustline(seed: str, issuer_address:str, currency_code:str, limit_amount="1000000000"):
     """
     Creates a trustline for a specific currency on the XRPL. This is required before you can hold a token.
@@ -94,7 +95,7 @@ async def create_trustline(seed: str, issuer_address:str, currency_code:str, lim
     try:
         currency_hex = text_to_hex(currency_code) #입력받은 토큰명을 hex값으로 치환 
     except ValueError as e:
-        print(f"Error: {e}")
+        logging.error(f"Error: {e}")
         return
     
     # Prepare the trust set transaction
@@ -108,33 +109,32 @@ async def create_trustline(seed: str, issuer_address:str, currency_code:str, lim
         }
     )
     
-    print("\n=== Creating Trustline ===")
-    print(f"Account: {wallet.classic_address}")
-    print(f"Currency (original): {currency_code}")
-    print(f"Currency (hex): {currency_hex}")
-    print(f"Issuer: {issuer_address}")
-    print(f"Limit: {limit_amount}")
+    logging.info("\n=== Creating Trustline ===")
+    logging.info(f"Account: {wallet.classic_address}")
+    logging.info(f"Currency (original): {currency_code}")
+    logging.info(f"Currency (hex): {currency_hex}")
+    logging.info(f"Issuer: {issuer_address}")
+    logging.info(f"Limit: {limit_amount}")
     
     try:
         # Submit and wait for validation
-        response = await submit_and_wait(trust_set_tx, client, wallet)
+        signed_tx = await autofill_and_sign(trust_set_tx, client, wallet)
+        response = await submit(signed_tx, client)
         
         # Check the result
         if response.is_successful():
-            print("\nTrustline created successfully!")
-            print(f"Transaction hash: {response.result['hash']}")
+            logging.info("\nTrustline created successfully!")
+            logging.info(f"Transaction hash: {response.result['hash']}")
             return response.result
         else:
-            print("\nFailed to create trustline")
-            print(f"Error: {response.result.get('engine_result_message')}")
+            logging.error("\nFailed to create trustline")
+            logging.error(f"Error: {response.result.get('engine_result_message')}")
             return {"error": response.result.get('engine_result_message')}
             
     except Exception as e:
-        print(f"\nError creating trustline: {str(e)}")
+        logging.error(f"\nError creating trustline: {str(e)}")
         return {"error": str(e)}
     
-    print("==============================\n")
-
 
 async def amm_deposit_single_xrp(seed: str, xrp_amount: str = "0.5"):
     """
@@ -142,15 +142,14 @@ async def amm_deposit_single_xrp(seed: str, xrp_amount: str = "0.5"):
     seed: The seed of the wallet to deposit from.
     xrp_amount: The amount of XRP to deposit.
     """
-    # Define the network client
-    client = AsyncJsonRpcClient(settings.XRPL_JSON_RPC_URL)
+    
     
     # Create wallet from seed
     wallet = Wallet.from_seed(seed)
     
     # RLUSD constants
-    currency_hex = "524C555344000000000000000000000000000000"  # Hex for "RLUSD"
-    issuer = "rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV"
+    currency_hex = RLUSD_CURRENCY_HEX
+    issuer = RLUSD_ISSUER
     
     # Get account sequence
     account_info = await client.request(AccountInfo(
@@ -180,30 +179,27 @@ async def amm_deposit_single_xrp(seed: str, xrp_amount: str = "0.5"):
     # Create Transaction object
     deposit_tx = Transaction.from_dict(tx_dict)
     
-    print("\n=== Depositing RLUSD to AMM ===")
-    print(f"Account: {wallet.classic_address}")
-    print(f"XRP Amount: {xrp_amount} XRP")
+    logging.info("\n=== Depositing RLUSD to AMM ===")
+    logging.info(f"Account: {wallet.classic_address}")
+    logging.info(f"XRP Amount: {xrp_amount} XRP")
     
     try:
         # Sign transaction
-        deposit_tx = await autofill(deposit_tx, client)
-        signed_tx =sign(deposit_tx, wallet)
-        
-        # Submit transaction
-        response = await submit_and_wait(signed_tx, client)
+        signed_tx = await autofill_and_sign(deposit_tx, client, wallet)
+        response = await submit(signed_tx, client)
         
         # Check the result
         if "engine_result" in response.result and response.result["engine_result"] == "tesSUCCESS":
-            print("\nDeposit successful!")
-            print(f"Transaction hash: {response.result.get('tx_json', {}).get('hash')}")
+            logging.info("\nDeposit successful!")
+            logging.info(f"Transaction hash: {response.result.get('tx_json', {}).get('hash')}")
             return response.result
         else:
-            print("\nDeposit failed")
-            print(f"Error: {response.result}")
+            logging.error("\nDeposit failed")
+            logging.error(f"Error: {response.result}")
             return {"error": response.result}
             
     except Exception as e:
-        print(f"\nError making deposit: {str(e)}")
+        logging.error(f"\nError making deposit: {str(e)}")
         raise e
 
 async def delegate_permission(seed: str,  delegated_account: str, permission: str = "Payment"):
@@ -227,16 +223,13 @@ async def delegate_permission(seed: str,  delegated_account: str, permission: st
     try:
         # Sign transaction
         
-        delegate_tx = await autofill(delegate_tx, client)
-        signed_tx =sign(delegate_tx, wallet)
-        
-        # Submit transaction
-        response = await submit_and_wait(signed_tx, client)
+        signed_tx = await autofill_and_sign(delegate_tx, client, wallet)
+        response = await submit(signed_tx, client)
         
         # Check the result
         if response.result.get("meta", {}).get("TransactionResult") == "tesSUCCESS":
-            print("\nDelegate successful!")
-            print(f"Transaction hash: {response.result.get('hash')}")
+            logging.info("\nDelegate successful!")
+            logging.info(f"Transaction hash: {response.result.get('hash')}")
             return response.result
         else:
             print("\nDelegate failed")
@@ -247,8 +240,8 @@ async def delegate_permission(seed: str,  delegated_account: str, permission: st
         print(f"\nError making delegate: {str(e)}")
         raise e
 
-    except Exception as e:
-        print(f"\nError making delegate: {str(e)}")
-        raise e
+
+
+
 
 

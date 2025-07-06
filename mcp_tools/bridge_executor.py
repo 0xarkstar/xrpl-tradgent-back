@@ -8,7 +8,9 @@ from typing import Optional, Dict, Any
 import logging
 import asyncio
 from config import settings
-from mcp_tools.mcp_instance import mcp
+
+
+import logging
 
 client = AsyncJsonRpcClient(settings.XRPL_JSON_RPC_URL)
 w3 = Web3(Web3.HTTPProvider(settings.EVM_RPC_URL))
@@ -26,6 +28,11 @@ def validate_evm_address(evm_dest: str) -> str:
         raise ValueError("Invalid EVM address")
     return evm_dest[2:].upper()
 
+MEMO_TYPE = "type"
+MEMO_DESTINATION_ADDRESS = "destination_address"
+MEMO_DESTINATION_CHAIN = "destination_chain"
+MEMO_GAS_FEE_AMOUNT = "gas_fee_amount"
+
 def build_memos(
     evm_dest: str,
     axelar_chain: str = "xrpl-evm",
@@ -38,19 +45,19 @@ def build_memos(
     memos = [
         Memo(
             memo_data=tx_type.encode().hex(),
-            memo_type="type".encode().hex()
+            memo_type=MEMO_TYPE.encode().hex()
         ),
         Memo(
             memo_data=evm_dest_ascii_hex,
-            memo_type="destination_address".encode().hex()
+            memo_type=MEMO_DESTINATION_ADDRESS.encode().hex()
         ),
         Memo(
             memo_data=axelar_chain.encode().hex(),
-            memo_type="destination_chain".encode().hex()
+            memo_type=MEMO_DESTINATION_CHAIN.encode().hex()
         ),
         Memo(
             memo_data=gas_fee_drops.encode().hex(),
-            memo_type="gas_fee_amount".encode().hex()
+            memo_type=MEMO_GAS_FEE_AMOUNT.encode().hex()
         )
     ]
     return memos
@@ -65,7 +72,6 @@ async def bridge_xrp_to_evm(seed: str, evm_dest: str, amount_drops: str, axelar_
         destination=ITS_CONTRACT_ADDRESS,
         memos=memos
     )
-    tx = await autofill(tx, client)
-    signed_tx = await sign(tx, wallet)
-    result = await submit_and_wait(signed_tx, client)
+    signed_tx = await autofill_and_sign(tx, client, wallet)
+    result = await submit(signed_tx, client)
     return result.result

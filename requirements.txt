@@ -14,3 +14,4 @@ langgraph
 langgraph-checkpoint-postgres
 psycopg[binary]
 graphviz
+langchain-mcp-adapters
