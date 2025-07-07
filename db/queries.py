@@ -41,6 +41,8 @@ async def get_user_by_evm_address(evm_wallet_address: str):
     response = await supabase.table("users").select("*", count="exact").eq("evm_wallet_address", evm_wallet_address).execute()
     return response.data[0] if response.data else None
 
+
+
 async def clear_table_data(table_name: str):
     """
     지정된 Supabase 테이블의 모든 데이터를 삭제합니다. 테이블 구조는 유지됩니다.

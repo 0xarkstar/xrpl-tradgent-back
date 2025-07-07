@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import user, agent, dashboard, executor, xrpl_test
+from routers import user, agent, dashboard, executor, xrpl_test, survey
 from config.settings import TAG_EXECUTOR, TAG_XRPL_TEST, TAG_USER, TAG_AGENT, TAG_DASHBOARD, ROOT_MESSAGE
 
 app = FastAPI()
@@ -27,6 +27,7 @@ app.include_router(xrpl_test.router, prefix="/xrpl_test", tags=[TAG_XRPL_TEST])
 app.include_router(user.router, prefix="/user", tags=[TAG_USER])
 app.include_router(agent.router, prefix="/agent", tags=[TAG_AGENT])
 app.include_router(dashboard.router, prefix="/dashboard", tags=[TAG_DASHBOARD])
+app.include_router(survey.router)
 
 @app.get("/")
 def root():
