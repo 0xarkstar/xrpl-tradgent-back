@@ -11,11 +11,17 @@ from pydantic import BaseModel
 from config import settings
 from mcp_tools import xrpl_executor
 
-class DelegatePermissionRequest(BaseModel):
-    user_wallet_seed: str # WARNING: This is highly insecure for production. User's seed should not be sent to backend.
-    xrpl_wallet_address: str
-    permission_type: str = "Payment" # Default to Payment, can be extended
+from fastapi import APIRouter, HTTPException
+from models.user import UserInitRequest
+from db.queries import (
+    insert_user, get_user_by_xrpl_address, get_user_by_evm_address,
+    update_user_delegate, update_user_risk_profile
+)
+from typing import List, Optional
+from pydantic import BaseModel
 
+from config import settings
+from mcp_tools import xrpl_executor
 
 router = APIRouter()
 
@@ -80,30 +86,41 @@ async def get_user_profile(xrpl_wallet_address: Optional[str] = None, evm_wallet
         raise HTTPException(status_code=404, detail="유저를 찾을 수 없습니다.")
     return {"success": True, "data": user}
 
-@router.post("/api/user/delegate_permission")
-async def delegate_permission_to_agent(req: DelegatePermissionRequest):
-    """
-    Delegates a specific permission from the user's wallet to the AI agent's wallet.
-    WARNING: This endpoint is highly insecure for production as it requires the user's seed.
-    In a production environment, the user should sign the transaction on the frontend
-    and send the signed transaction blob to the backend for submission.
-    """
-    if not settings.AI_AGENT_WALLET_SEED:
-        raise HTTPException(status_code=500, detail="AI Agent wallet seed is not configured.")
+from xrpl.asyncio.clients import AsyncJsonRpcClient
+from datetime import datetime
+from xrpl.core.binarycodec import decode
 
-    # Create AI agent wallet from its seed
-    ai_agent_wallet = xrpl_executor.create_wallet_from_seed(settings.AI_AGENT_WALLET_SEED)
-    ai_agent_address = ai_agent_wallet.classic_address
 
+class SubmitSignedTxRequest(BaseModel):
+    signed_tx_blob: str
+
+@router.post("/api/user/submit_signed_tx")
+async def submit_signed_transaction_endpoint(req: SubmitSignedTxRequest):
+    """
+    프론트엔드에서 서명된 트랜잭션 블롭을 받아 XRPL 네트워크에 제출합니다.
+    """
     try:
-        # Delegate permission from user's wallet to AI agent's wallet
-        result = await xrpl_executor.delegate_permission(
-            seed=req.user_wallet_seed,
-            delegated_account=ai_agent_address,
-            permission=req.permission_type
-        )
-        if "error" in result:
-            raise HTTPException(status_code=500, detail=f"Permission delegation failed: {result['error']}")
-        return {"success": True, "data": result}
+        # XRPL 클라이언트 초기화
+        client = AsyncJsonRpcClient(settings.XRPL_JSON_RPC_URL)
+        
+        # 서명된 트랜잭션 제출
+        response = await client.submit(req.signed_tx_blob)
+        
+        # 응답 확인 및 반환
+        if response.result.get("engine_result") == "tesSUCCESS":
+            # 트랜잭션 블롭에서 Account (사용자 지갑 주소) 추출
+            decoded_tx = decode(req.signed_tx_blob)
+            user_xrpl_address = decoded_tx.get("Account")
+
+            if user_xrpl_address:
+                # 데이터베이스에 위임 상태 업데이트
+                await update_user_delegate(user_xrpl_address, True, datetime.now().isoformat())
+                print(f"[DEBUG] User {user_xrpl_address} delegation status updated in DB.")
+            else:
+                print("[DEBUG] Could not extract Account from signed transaction blob.")
+
+            return {"success": True, "data": response.result}
+        else:
+            raise HTTPException(status_code=400, detail=f"트랜잭션 제출 실패: {response.result.get('engine_result_message', response.result.get('engine_result'))}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred during delegation: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"트랜잭션 제출 중 오류 발생: {str(e)}")

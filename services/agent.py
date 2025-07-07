@@ -26,6 +26,7 @@ class AgentState(TypedDict, total=False):
     messages: Annotated[List[BaseMessage], add_messages]
     farming_params: Optional[dict]
     approval: Optional[bool]
+    context: Optional[dict] # Add context here
     # ...추가 필드 확장 가능
 
 # LLM 노드
@@ -93,22 +94,22 @@ async def _initialize_agent_executor():
 
 async def get_agent():    return await _initialize_agent_executor()
 
-async def arun_agent(query: str, user_id: str):
+async def arun_agent(query: str, user_id: str, context: Optional[dict] = None):
     """
     사용자별로 대화 맥락을 유지하며 에이전트를 비동기 실행합니다.
     """
     agent_executor = await _initialize_agent_executor()
     prompt = SYSTEM_PROMPT + "\n" + query
-    inputs = {"messages": [HumanMessage(content=prompt)]}
+    inputs = {"messages": [HumanMessage(content=prompt)], "context": context}
     response = await agent_executor.ainvoke(inputs, config={"configurable": {"thread_id": user_id}})
     if response and response["messages"]:
         return {"response": response["messages"][-1].content}
     return {"response": "No response from agent."}
 
-async def stream_agent(query: str, user_id: str):
+async def stream_agent(query: str, user_id: str, context: Optional[dict] = None):
     agent_executor = await _initialize_agent_executor()
     prompt = SYSTEM_PROMPT + "\n" + query
-    inputs = {"messages": [HumanMessage(content=prompt)]}
+    inputs = {"messages": [HumanMessage(content=prompt)], "context": context}
     async for chunk in agent_executor.astream(inputs, config={"configurable": {"thread_id": user_id}}):
         if "messages" in chunk and chunk["messages"]:
             last_message = chunk["messages"][-1]

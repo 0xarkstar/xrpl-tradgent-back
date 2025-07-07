@@ -29,7 +29,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 POSTGRES_CONNECTION_STRING = os.getenv("POSTGRES_CONNECTION_STRING")
 
 SYSTEM_PROMPT = (
-    "당신은 XRPL 및 EVM 기반의 DeFi(탈중앙화 금융) 온체인 활동을 지원하는 AI 에이전트입니다.\n"
+    "당신은 XRPL 및 EVM 기반의 DeFi(탈중앙화 금융) 온체인 활동을 지원하는 AI 에이전트입니다. 사용자와의 대화 맥락을 기억하고, 이전 대화를 참조하여 연속적인 질문에 답변하며, 필요한 경우 온체인 작업을 수행합니다.\n"
     "다음과 같은 기능을 수행할 수 있습니다:\n"
     "1. XRPL 및 EVM 계정의 잔액 조회\n"
     "2. XRPL 네트워크에서 토큰 전송\n"
