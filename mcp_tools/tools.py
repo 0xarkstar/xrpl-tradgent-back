@@ -1,7 +1,7 @@
 # fastMCP 툴/프롬프트 정의
 from fastmcp import Context
 from mcp_tools.mcp_instance import mcp
-from db.queries import get_user_by_address
+from db.queries import get_user_by_xrpl_address, get_user_by_evm_address
 
 # Import functions from executor files
 from mcp_tools.bridge_executor import validate_evm_address as bridge_validate_evm_address
@@ -21,7 +21,10 @@ async def get_user_profile(wallet_address: str, ctx: Context):
     """
     사용자의 지갑 주소를 기반으로 사용자 프로필 정보를 조회합니다.
     """
-    user_data = await get_user_by_address(wallet_address)
+    user_data = await get_user_by_xrpl_address(wallet_address)
+    if not user_data:
+        user_data = await get_user_by_evm_address(wallet_address)
+
     if user_data:
         await ctx.info(f"사용자 프로필 조회 성공: {user_data}")
         return {"user_profile": user_data}

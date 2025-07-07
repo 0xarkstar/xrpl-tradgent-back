@@ -1,8 +1,6 @@
-
-
 from typing import Annotated, List, Optional
 import graphviz
-from db.queries import get_user_by_address
+from db.queries import get_user_by_xrpl_address, get_user_by_evm_address
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, FunctionMessage
 from langgraph.graph import StateGraph, START, END
